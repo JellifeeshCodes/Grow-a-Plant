@@ -1,0 +1,1055 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Grow — The Plant Word Game</title>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,700;1,400&family=Courier+Prime:ital@0;1&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --soil: #3d2b1f;
+    --soil-light: #5c4033;
+    --green-dark: #1a4a1e;
+    --green-mid: #2d7a35;
+    --green-bright: #4caf50;
+    --green-light: #a5d6a7;
+    --leaf: #388e3c;
+    --flower-yellow: #fdd835;
+    --flower-pink: #f48fb1;
+    --flower-orange: #ff8f00;
+    --sky: #e8f5e9;
+    --text: #1b2a1c;
+    --muted: #5a7a5c;
+    --gold: #c8a96e;
+    --bg: #f0f7f0;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: 'Courier Prime', monospace;
+    background: var(--bg);
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: flex-start;
+    overflow-x: hidden;
+    position: relative;
+  }
+
+  /* Subtle paper texture */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='300' height='300'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='300' height='300' filter='url(%23noise)' opacity='0.035'/%3E%3C/svg%3E");
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  header {
+    text-align: center;
+    padding: 2rem 1rem 0.5rem;
+    position: relative;
+    z-index: 1;
+  }
+
+  header h1 {
+    font-family: 'Playfair Display', serif;
+    font-size: clamp(2.2rem, 6vw, 3.5rem);
+    color: var(--green-dark);
+    letter-spacing: -1px;
+    line-height: 1;
+  }
+
+  header h1 em {
+    color: var(--green-bright);
+    font-style: italic;
+  }
+
+  header p.subtitle {
+    font-family: 'Courier Prime', monospace;
+    font-size: 0.8rem;
+    color: var(--muted);
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    margin-top: 0.4rem;
+  }
+
+  /* Word hints strip */
+  #hint-strip {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem;
+    justify-content: center;
+    padding: 0.8rem 1rem;
+    max-width: 640px;
+    position: relative;
+    z-index: 1;
+  }
+
+  .hint-tag {
+    background: white;
+    border: 1.5px solid var(--green-light);
+    color: var(--muted);
+    font-size: 0.7rem;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    padding: 0.2rem 0.6rem;
+    border-radius: 2px;
+    transition: all 0.3s ease;
+    font-family: 'Courier Prime', monospace;
+  }
+
+  .hint-tag.used {
+    background: var(--green-bright);
+    border-color: var(--green-dark);
+    color: white;
+    text-decoration: line-through;
+  }
+
+  /* Garden scene */
+  #garden {
+    position: relative;
+    width: 100%;
+    max-width: 600px;
+    height: 380px;
+    margin: 0 auto;
+    z-index: 1;
+  }
+
+  #garden-svg {
+    width: 100%;
+    height: 100%;
+    overflow: visible;
+  }
+
+  /* Input area */
+  #input-area {
+    position: relative;
+    z-index: 10;
+    text-align: center;
+    padding: 0.5rem 1rem 1rem;
+    width: 100%;
+    max-width: 500px;
+  }
+
+  #word-input {
+    width: 100%;
+    padding: 0.75rem 1.2rem;
+    font-family: 'Playfair Display', serif;
+    font-size: 1.4rem;
+    border: 2px solid var(--green-light);
+    border-radius: 4px;
+    background: white;
+    color: var(--text);
+    outline: none;
+    transition: border-color 0.3s, box-shadow 0.3s;
+    text-align: center;
+    letter-spacing: 0.05em;
+  }
+
+  #word-input:focus {
+    border-color: var(--green-bright);
+    box-shadow: 0 0 0 3px rgba(76,175,80,0.15);
+  }
+
+  #word-input.correct {
+    border-color: var(--green-dark);
+    background: #f1faf1;
+    animation: pulse-green 0.4s ease;
+  }
+
+  #word-input.wrong {
+    border-color: #e57373;
+    animation: shake 0.35s ease;
+  }
+
+  @keyframes pulse-green {
+    0% { transform: scale(1); }
+    50% { transform: scale(1.03); }
+    100% { transform: scale(1); }
+  }
+
+  @keyframes shake {
+    0%, 100% { transform: translateX(0); }
+    25% { transform: translateX(-6px); }
+    75% { transform: translateX(6px); }
+  }
+
+  #feedback {
+    margin-top: 0.5rem;
+    font-size: 0.85rem;
+    color: var(--muted);
+    min-height: 1.2em;
+    font-style: italic;
+  }
+
+  /* Level / progress */
+  #progress-bar-wrap {
+    width: 100%;
+    max-width: 500px;
+    margin: 0 auto 0.5rem;
+    position: relative;
+    z-index: 1;
+    padding: 0 1rem;
+  }
+
+  #progress-bar-bg {
+    height: 6px;
+    background: var(--green-light);
+    border-radius: 3px;
+    overflow: hidden;
+  }
+
+  #progress-bar {
+    height: 100%;
+    background: linear-gradient(90deg, var(--green-mid), var(--green-bright));
+    border-radius: 3px;
+    width: 0%;
+    transition: width 0.6s cubic-bezier(.4,0,.2,1);
+  }
+
+  #stage-label {
+    font-size: 0.7rem;
+    color: var(--muted);
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    margin-bottom: 0.3rem;
+  }
+
+  /* Win banner */
+  #win-banner {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(27,42,28,0.85);
+    z-index: 100;
+    align-items: center;
+    justify-content: center;
+    flex-direction: column;
+    gap: 1.5rem;
+  }
+
+  #win-banner.show {
+    display: flex;
+    animation: fadeIn 0.6s ease;
+  }
+
+  @keyframes fadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+  }
+
+  #win-banner h2 {
+    font-family: 'Playfair Display', serif;
+    font-size: 3rem;
+    color: var(--flower-yellow);
+    text-shadow: 0 2px 20px rgba(253,216,53,0.4);
+  }
+
+  #win-banner p {
+    color: var(--green-light);
+    font-size: 1rem;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+  }
+
+  #restart-btn {
+    padding: 0.7rem 2rem;
+    background: var(--green-bright);
+    color: white;
+    border: none;
+    border-radius: 3px;
+    font-family: 'Courier Prime', monospace;
+    font-size: 1rem;
+    cursor: pointer;
+    letter-spacing: 0.1em;
+    transition: background 0.2s, transform 0.15s;
+  }
+
+  #restart-btn:hover {
+    background: var(--green-dark);
+    transform: scale(1.04);
+  }
+
+  /* Floating word particles */
+  .word-particle {
+    position: fixed;
+    pointer-events: none;
+    font-family: 'Playfair Display', serif;
+    font-style: italic;
+    color: var(--green-bright);
+    font-size: 1.1rem;
+    z-index: 50;
+    animation: floatUp 1.2s ease-out forwards;
+  }
+
+  @keyframes floatUp {
+    0% { opacity: 1; transform: translateY(0) scale(1); }
+    100% { opacity: 0; transform: translateY(-80px) scale(1.3); }
+  }
+
+  /* === SIDEBAR === */
+  #game-layout {
+    display: flex;
+    align-items: flex-start;
+    justify-content: center;
+    gap: 1.2rem;
+    width: 100%;
+    max-width: 860px;
+    padding: 0 0.5rem;
+    position: relative;
+    z-index: 1;
+  }
+
+  #sidebar {
+    display: flex;
+    flex-direction: column;
+    gap: 0.8rem;
+    min-width: 130px;
+    padding-top: 0.5rem;
+  }
+
+  .side-card {
+    background: white;
+    border: 1.5px solid var(--green-light);
+    border-radius: 6px;
+    padding: 0.8rem 1rem;
+    text-align: center;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+  }
+
+  .side-card-label {
+    font-size: 0.62rem;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-bottom: 0.3rem;
+  }
+
+  .side-card-value {
+    font-family: 'Playfair Display', serif;
+    font-size: 2rem;
+    color: var(--green-dark);
+    line-height: 1;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .side-card-value.ticking {
+    color: var(--green-mid);
+  }
+
+  .side-card-value.new-record {
+    color: #e65100;
+    animation: glow-record 0.6s ease infinite alternate;
+  }
+
+  @keyframes glow-record {
+    from { text-shadow: none; }
+    to   { text-shadow: 0 0 12px rgba(230,81,0,0.4); }
+  }
+
+  #best-label {
+    font-size: 0.62rem;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-top: 0.25rem;
+  }
+
+  #crown {
+    font-size: 1rem;
+    display: none;
+  }
+
+  #scores-list {
+    text-align: left;
+    margin-top: 0.4rem;
+  }
+
+  .score-entry {
+    display: flex;
+    justify-content: space-between;
+    font-size: 0.72rem;
+    color: var(--muted);
+    padding: 0.15rem 0;
+    border-bottom: 1px solid #e8f5e9;
+    gap: 0.5rem;
+  }
+
+  .score-entry:last-child { border-bottom: none; }
+  .score-entry.gold { color: #e65100; font-weight: bold; }
+
+  #timer-display {
+    font-family: 'Playfair Display', serif;
+    font-size: 2rem;
+    color: var(--green-dark);
+    line-height: 1;
+    letter-spacing: 0.03em;
+  }
+
+  #timer-ms {
+    font-size: 1rem;
+    color: var(--muted);
+    vertical-align: baseline;
+  }
+
+  #main-col {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+
+  /* Timer pulse when running */
+  @keyframes timer-pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.6; }
+  }
+
+  #timer-dot {
+    display: inline-block;
+    width: 7px;
+    height: 7px;
+    background: var(--green-bright);
+    border-radius: 50%;
+    margin-right: 4px;
+    vertical-align: middle;
+    opacity: 0;
+    transition: opacity 0.3s;
+  }
+
+  #timer-dot.active {
+    opacity: 1;
+    animation: timer-pulse 1s ease infinite;
+  }
+
+  /* Win banner time display */
+  #win-time {
+    font-family: 'Playfair Display', serif;
+    font-size: 1.6rem;
+    color: #fdd835;
+  }
+
+  #win-record-msg {
+    color: #ffcc80;
+    font-size: 0.85rem;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    min-height: 1.2em;
+  }
+
+  /* SVG plant parts - animated */
+  .stem-seg { transition: opacity 0.5s ease, transform 0.5s ease; }
+  .leaf-part { transition: opacity 0.6s ease, transform 0.6s ease; transform-origin: bottom center; }
+  .flower-part { transition: opacity 0.7s ease, transform 0.7s ease; transform-origin: bottom center; }
+  .hidden-plant { opacity: 0; transform: scaleY(0); }
+  .visible-plant { opacity: 1; transform: scaleY(1); }
+  .hidden-leaf { opacity: 0; transform: scale(0) rotate(-20deg); }
+  .visible-leaf { opacity: 1; transform: scale(1) rotate(0deg); }
+  .hidden-flower { opacity: 0; transform: scale(0); }
+  .visible-flower { opacity: 1; transform: scale(1); }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Grow <em>a</em> Plant</h1>
+  <p class="subtitle">Type the magic words to make it bloom</p>
+</header>
+
+<div id="hint-strip"></div>
+
+<div id="game-layout">
+
+  <!-- LEFT SIDEBAR -->
+  <div id="sidebar">
+    <div class="side-card">
+      <div class="side-card-label"><span id="timer-dot"></span>Time</div>
+      <div id="timer-display">
+        <span id="timer-sec">0</span><span id="timer-ms">.00</span>s
+      </div>
+    </div>
+    <div class="side-card">
+      <div class="side-card-label">🏆 Best</div>
+      <div id="best-display" class="side-card-value">—</div>
+      <div id="best-label"></div>
+    </div>
+    <div class="side-card">
+      <div class="side-card-label">History</div>
+      <div id="scores-list">
+        <div class="score-entry" style="color:#ccc;font-style:italic;font-size:0.7rem">No runs yet</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- MAIN COLUMN -->
+  <div id="main-col">
+
+<div id="progress-bar-wrap">
+  <div id="stage-label">Seedling</div>
+  <div id="progress-bar-bg"><div id="progress-bar"></div></div>
+</div>
+
+<div id="garden">
+  <svg id="garden-svg" viewBox="0 0 600 380" xmlns="http://www.w3.org/2000/svg">
+    <!-- Sky gradient -->
+    <defs>
+      <linearGradient id="skyGrad" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0%" stop-color="#e8f5e9"/>
+        <stop offset="100%" stop-color="#f0f7f0"/>
+      </linearGradient>
+      <linearGradient id="soilGrad" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0%" stop-color="#5c4033"/>
+        <stop offset="100%" stop-color="#3d2b1f"/>
+      </linearGradient>
+      <radialGradient id="sunGlow" cx="50%" cy="50%" r="50%">
+        <stop offset="0%" stop-color="#fffde7" stop-opacity="0.7"/>
+        <stop offset="100%" stop-color="#fffde7" stop-opacity="0"/>
+      </radialGradient>
+      <filter id="softBlur">
+        <feGaussianBlur stdDeviation="2"/>
+      </filter>
+      <filter id="leafShadow">
+        <feDropShadow dx="1" dy="2" stdDeviation="2" flood-opacity="0.15"/>
+      </filter>
+    </defs>
+
+    <!-- Background -->
+    <rect width="600" height="300" fill="url(#skyGrad)"/>
+
+    <!-- Sun -->
+    <circle id="sun" cx="520" cy="55" r="38" fill="#fffde7" opacity="0"/>
+    <circle cx="520" cy="55" r="55" fill="url(#sunGlow)" id="sun-glow" opacity="0"/>
+
+    <!-- Clouds -->
+    <g id="cloud1" opacity="0">
+      <ellipse cx="100" cy="60" rx="55" ry="22" fill="white" opacity="0.85"/>
+      <ellipse cx="75" cy="68" rx="35" ry="18" fill="white" opacity="0.85"/>
+      <ellipse cx="130" cy="65" rx="38" ry="16" fill="white" opacity="0.85"/>
+    </g>
+    <g id="cloud2" opacity="0">
+      <ellipse cx="390" cy="45" rx="45" ry="18" fill="white" opacity="0.8"/>
+      <ellipse cx="365" cy="52" rx="28" ry="14" fill="white" opacity="0.8"/>
+      <ellipse cx="415" cy="50" rx="30" ry="13" fill="white" opacity="0.8"/>
+    </g>
+
+    <!-- Soil -->
+    <rect x="0" y="300" width="600" height="80" fill="url(#soilGrad)" rx="0"/>
+    <!-- Soil texture lines -->
+    <path d="M20 310 Q100 305 180 312 Q260 318 340 308 Q420 302 500 311 Q560 316 590 310" stroke="#7a5c4a" stroke-width="1.5" fill="none" opacity="0.5"/>
+    <path d="M0 325 Q80 320 160 327 Q240 333 320 323 Q400 317 480 326 Q545 331 600 325" stroke="#7a5c4a" stroke-width="1" fill="none" opacity="0.3"/>
+
+    <!-- Rocks / pebbles -->
+    <ellipse cx="180" cy="305" rx="12" ry="6" fill="#6d4c41" opacity="0.6"/>
+    <ellipse cx="420" cy="307" rx="9" ry="5" fill="#6d4c41" opacity="0.5"/>
+    <ellipse cx="300" cy="303" rx="7" ry="4" fill="#795548" opacity="0.4"/>
+
+    <!-- === PLANT GROUP === centered at x=300 -->
+    <g id="plant-root">
+
+      <!-- STEM segments — revealed one at a time -->
+      <g id="stem-group">
+        <!-- Stem seg 1 (bottom) -->
+        <rect id="stem1" class="stem-seg hidden-plant" x="296" y="240" width="8" height="62" rx="4" fill="#2d7a35"/>
+        <!-- Stem seg 2 -->
+        <rect id="stem2" class="stem-seg hidden-plant" x="296" y="190" width="8" height="55" rx="4" fill="#33883b"/>
+        <!-- Stem seg 3 -->
+        <rect id="stem3" class="stem-seg hidden-plant" x="295" y="145" width="8" height="50" rx="4" fill="#388e3c"/>
+        <!-- Stem seg 4 (top) -->
+        <rect id="stem4" class="stem-seg hidden-plant" x="295" y="100" width="8" height="50" rx="4" fill="#43a047"/>
+      </g>
+
+      <!-- LEAVES -->
+      <!-- Leaf 1 left - small -->
+      <g id="leaf1" class="leaf-part hidden-leaf" style="transform-origin:300px 260px">
+        <ellipse cx="272" cy="255" rx="24" ry="12" fill="#388e3c" transform="rotate(-30,272,255)" filter="url(#leafShadow)"/>
+        <line x1="296" y1="258" x2="260" y2="252" stroke="#2d7a35" stroke-width="1.2"/>
+      </g>
+      <!-- Leaf 2 right -->
+      <g id="leaf2" class="leaf-part hidden-leaf" style="transform-origin:300px 220px">
+        <ellipse cx="332" cy="215" rx="28" ry="13" fill="#43a047" transform="rotate(25,332,215)" filter="url(#leafShadow)"/>
+        <line x1="304" y1="218" x2="340" y2="212" stroke="#388e3c" stroke-width="1.2"/>
+      </g>
+      <!-- Leaf 3 left - big -->
+      <g id="leaf3" class="leaf-part hidden-leaf" style="transform-origin:300px 175px">
+        <ellipse cx="264" cy="170" rx="36" ry="16" fill="#4caf50" transform="rotate(-25,264,170)" filter="url(#leafShadow)"/>
+        <line x1="299" y1="173" x2="252" y2="167" stroke="#388e3c" stroke-width="1.5"/>
+        <line x1="275" y1="168" x2="268" y2="158" stroke="#388e3c" stroke-width="0.8" opacity="0.7"/>
+      </g>
+      <!-- Leaf 4 right - big -->
+      <g id="leaf4" class="leaf-part hidden-leaf" style="transform-origin:300px 150px">
+        <ellipse cx="342" cy="145" rx="38" ry="16" fill="#66bb6a" transform="rotate(20,342,145)" filter="url(#leafShadow)"/>
+        <line x1="303" y1="148" x2="352" y2="142" stroke="#388e3c" stroke-width="1.5"/>
+        <line x1="330" y1="143" x2="335" y2="132" stroke="#388e3c" stroke-width="0.8" opacity="0.7"/>
+      </g>
+      <!-- Leaf 5 top small -->
+      <g id="leaf5" class="leaf-part hidden-leaf" style="transform-origin:300px 120px">
+        <ellipse cx="278" cy="116" rx="22" ry="10" fill="#81c784" transform="rotate(-15,278,116)" filter="url(#leafShadow)"/>
+        <line x1="298" y1="118" x2="268" y2="114" stroke="#4caf50" stroke-width="1"/>
+      </g>
+
+      <!-- FLOWER CENTER (bud first, then blooms) -->
+      <g id="flower-bud" class="flower-part hidden-flower" style="transform-origin:300px 100px">
+        <ellipse cx="300" cy="97" rx="10" ry="14" fill="#66bb6a"/>
+        <ellipse cx="300" cy="97" rx="6" ry="9" fill="#a5d6a7"/>
+      </g>
+
+      <!-- Full flower -->
+      <g id="flower-full" class="flower-part hidden-flower" style="transform-origin:300px 100px">
+        <!-- Petals -->
+        <ellipse cx="300" cy="70" rx="11" ry="18" fill="#fdd835" opacity="0.95"/> <!-- top -->
+        <ellipse cx="300" cy="130" rx="11" ry="18" fill="#fdd835" opacity="0.95"/> <!-- bottom -->
+        <ellipse cx="270" cy="100" rx="18" ry="11" fill="#fdd835" opacity="0.95"/> <!-- left -->
+        <ellipse cx="330" cy="100" rx="18" ry="11" fill="#fdd835" opacity="0.95"/> <!-- right -->
+        <ellipse cx="279" cy="79" rx="13" ry="17" fill="#ffee58" opacity="0.9" transform="rotate(-45,279,79)"/> <!-- top-left -->
+        <ellipse cx="321" cy="79" rx="13" ry="17" fill="#ffee58" opacity="0.9" transform="rotate(45,321,79)"/> <!-- top-right -->
+        <ellipse cx="279" cy="121" rx="13" ry="17" fill="#ffee58" opacity="0.9" transform="rotate(45,279,121)"/> <!-- bottom-left -->
+        <ellipse cx="321" cy="121" rx="13" ry="17" fill="#ffee58" opacity="0.9" transform="rotate(-45,321,121)"/> <!-- bottom-right -->
+        <!-- Center -->
+        <circle cx="300" cy="100" r="18" fill="#ff8f00"/>
+        <circle cx="300" cy="100" r="13" fill="#ffa000"/>
+        <!-- Center dots -->
+        <circle cx="295" cy="95" r="2" fill="#3d2b1f" opacity="0.5"/>
+        <circle cx="305" cy="95" r="2" fill="#3d2b1f" opacity="0.5"/>
+        <circle cx="300" cy="102" r="1.5" fill="#3d2b1f" opacity="0.4"/>
+        <circle cx="293" cy="103" r="1.5" fill="#3d2b1f" opacity="0.4"/>
+        <circle cx="307" cy="103" r="1.5" fill="#3d2b1f" opacity="0.4"/>
+      </g>
+
+      <!-- Sparkles on bloom -->
+      <g id="sparkles" opacity="0">
+        <text x="248" y="62" font-size="16" fill="#fdd835">✦</text>
+        <text x="346" y="68" font-size="12" fill="#ffee58">✦</text>
+        <text x="260" y="50" font-size="10" fill="#fff176">✧</text>
+        <text x="340" y="55" font-size="14" fill="#fdd835">✧</text>
+      </g>
+
+      <!-- Seed (visible at start) -->
+      <g id="seed">
+        <ellipse cx="300" cy="298" rx="8" ry="5" fill="#795548" opacity="0.8"/>
+        <ellipse cx="300" cy="295" rx="5" ry="3" fill="#a1887f" opacity="0.7"/>
+      </g>
+
+      <!-- Soil bump -->
+      <ellipse cx="300" cy="303" rx="30" ry="6" fill="#5c4033" opacity="0.5"/>
+    </g>
+
+    <!-- Rain drops (appear when typing "rain" or "water") -->
+    <g id="rain-group" opacity="0">
+      <line x1="280" y1="30" x2="275" y2="55" stroke="#90caf9" stroke-width="1.5" stroke-linecap="round"/>
+      <line x1="300" y1="20" x2="295" y2="45" stroke="#90caf9" stroke-width="1.5" stroke-linecap="round"/>
+      <line x1="320" y1="28" x2="315" y2="53" stroke="#90caf9" stroke-width="1.5" stroke-linecap="round"/>
+      <line x1="260" y1="22" x2="255" y2="47" stroke="#90caf9" stroke-width="1.5" stroke-linecap="round"/>
+      <line x1="340" y1="18" x2="335" y2="43" stroke="#90caf9" stroke-width="1.5" stroke-linecap="round"/>
+    </g>
+
+    <!-- Butterfly (final stage) -->
+    <g id="butterfly" opacity="0" style="transform-origin:230px 120px">
+      <ellipse cx="218" cy="118" rx="16" ry="10" fill="#f48fb1" opacity="0.9" transform="rotate(-20,218,118)"/>
+      <ellipse cx="242" cy="118" rx="16" ry="10" fill="#f48fb1" opacity="0.9" transform="rotate(20,242,118)"/>
+      <ellipse cx="220" cy="130" rx="10" ry="7" fill="#f06292" opacity="0.8" transform="rotate(-15,220,130)"/>
+      <ellipse cx="240" cy="130" rx="10" ry="7" fill="#f06292" opacity="0.8" transform="rotate(15,240,130)"/>
+      <line x1="230" y1="115" x2="230" y2="135" stroke="#4a148c" stroke-width="1.5"/>
+      <path d="M228 113 Q222 105 225 100" stroke="#4a148c" stroke-width="1" fill="none"/>
+      <path d="M232 113 Q238 105 235 100" stroke="#4a148c" stroke-width="1" fill="none"/>
+    </g>
+
+    <!-- Ladybug (stage 3) -->
+    <g id="ladybug" opacity="0">
+      <circle cx="355" cy="168" r="7" fill="#e53935"/>
+      <circle cx="355" cy="168" r="7" fill="none" stroke="#3d2b1f" stroke-width="0.8"/>
+      <circle cx="352" cy="165" r="2" fill="#3d2b1f"/>
+      <circle cx="358" cy="165" r="2" fill="#3d2b1f"/>
+      <line x1="355" y1="161" x2="355" y2="175" stroke="#3d2b1f" stroke-width="0.8"/>
+    </g>
+
+  </svg>
+</div>
+
+<div id="input-area">
+  <input type="text" id="word-input" placeholder="type a word…" autocomplete="off" autocorrect="off" spellcheck="false"/>
+  <div id="feedback"></div>
+</div>
+
+  </div><!-- end main-col -->
+</div><!-- end game-layout -->
+
+<div id="win-banner">
+  <h2>🌸 Bloomed!</h2>
+  <div id="win-time"></div>
+  <div id="win-record-msg"></div>
+  <p>Your garden is fully grown</p>
+  <button id="restart-btn">Plant again</button>
+</div>
+
+<script>
+// === GAME DATA ===
+const stages = [
+  {
+    label: "Seedling",
+    words: ["seed", "soil", "earth", "plant", "grow", "ground", "dirt"],
+    reveals: ["stem1"],
+    effects: []
+  },
+  {
+    label: "Sprouting",
+    words: ["water", "rain", "drink", "wet", "moist", "pour", "sprinkle"],
+    reveals: ["stem2", "leaf1"],
+    effects: ["rain"]
+  },
+  {
+    label: "Growing",
+    words: ["sun", "light", "shine", "bright", "warm", "solar", "rays"],
+    reveals: ["stem3", "leaf2", "leaf3"],
+    effects: ["sun", "cloud1"]
+  },
+  {
+    label: "Tall",
+    words: ["food", "feed", "nutrient", "nourish", "fertilize", "compost", "mineral"],
+    reveals: ["stem4", "leaf4", "leaf5", "ladybug"],
+    effects: []
+  },
+  {
+    label: "Budding",
+    words: ["bud", "bloom", "flower", "blossom", "petal", "spring", "grow"],
+    reveals: ["flower-bud"],
+    effects: ["cloud2"]
+  },
+  {
+    label: "Blooming",
+    words: ["love", "care", "tend", "cherish", "nurture", "thrive", "flourish"],
+    reveals: ["flower-full", "sparkles", "sun-glow", "butterfly"],
+    effects: ["sunFull"]
+  }
+];
+
+// All magic words for hint display
+const allWords = stages.flatMap(s => s.words.slice(0, 3));
+
+let currentStage = 0;
+let correctWordsThisStage = 0;
+const WORDS_NEEDED = 1; // one correct word advances stage
+
+// Build hint strip
+const hintStrip = document.getElementById('hint-strip');
+const shownHints = [];
+stages.forEach(s => {
+  const word = s.words[Math.floor(Math.random() * s.words.length)];
+  shownHints.push({ word, el: null, used: false });
+});
+shownHints.forEach(h => {
+  const tag = document.createElement('span');
+  tag.className = 'hint-tag';
+  tag.textContent = h.word;
+  h.el = tag;
+  hintStrip.appendChild(tag);
+});
+
+function getStageWords() {
+  return stages[currentStage]?.words || [];
+}
+
+function revealStageAssets(stage) {
+  const s = stages[stage];
+  if (!s) return;
+
+  // Remove seed once sprouted
+  if (stage >= 1) {
+    const seed = document.getElementById('seed');
+    if (seed) seed.style.opacity = '0';
+  }
+
+  s.reveals.forEach(id => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    setTimeout(() => {
+      el.classList.remove('hidden-plant', 'hidden-leaf', 'hidden-flower');
+      el.classList.add('visible-plant', 'visible-leaf', 'visible-flower');
+      el.style.opacity = '1';
+      el.style.transform = 'scale(1)';
+    }, 100);
+  });
+
+  s.effects.forEach(effect => {
+    if (effect === 'rain') animateRain();
+    if (effect === 'sun') showSun(false);
+    if (effect === 'sunFull') showSun(true);
+    if (effect === 'cloud1') showEl('cloud1');
+    if (effect === 'cloud2') showEl('cloud2');
+  });
+}
+
+function showEl(id, opacity = 1) {
+  const el = document.getElementById(id);
+  if (el) {
+    el.style.transition = 'opacity 1s ease';
+    el.style.opacity = opacity;
+  }
+}
+
+function showSun(full) {
+  const sun = document.getElementById('sun');
+  const glow = document.getElementById('sun-glow');
+  sun.style.transition = 'opacity 1.5s ease';
+  glow.style.transition = 'opacity 1.5s ease';
+  sun.style.opacity = full ? '1' : '0.7';
+  glow.style.opacity = full ? '1' : '0.6';
+}
+
+function animateRain() {
+  const rain = document.getElementById('rain-group');
+  rain.style.transition = 'opacity 0.5s';
+  rain.style.opacity = '1';
+  setTimeout(() => {
+    rain.style.opacity = '0';
+  }, 2000);
+}
+
+function animateButterfly() {
+  const b = document.getElementById('butterfly');
+  if (!b) return;
+  b.style.transition = 'opacity 1s ease';
+  b.style.opacity = '1';
+  let angle = 0;
+  let x = 0;
+  setInterval(() => {
+    angle += 0.04;
+    x = Math.sin(angle) * 30;
+    const y = Math.sin(angle * 0.7) * 15;
+    b.setAttribute('transform', `translate(${x}, ${y})`);
+  }, 30);
+}
+
+function spawnParticle(word) {
+  const inp = document.getElementById('word-input');
+  const rect = inp.getBoundingClientRect();
+  const el = document.createElement('div');
+  el.className = 'word-particle';
+  el.textContent = word;
+  el.style.left = (rect.left + rect.width / 2 - 40) + 'px';
+  el.style.top = (rect.top - 10) + 'px';
+  document.body.appendChild(el);
+  setTimeout(() => el.remove(), 1300);
+}
+
+function updateProgress() {
+  const total = stages.length;
+  const pct = (currentStage / total) * 100;
+  document.getElementById('progress-bar').style.width = pct + '%';
+  const label = stages[currentStage]?.label || 'Fully Bloomed';
+  document.getElementById('stage-label').textContent = label;
+}
+
+const feedbacks = [
+  "Beautiful word! ✨",
+  "The plant stirs…",
+  "It's growing!",
+  "Keep going!",
+  "Magic at work ✦",
+  "Nature loves that word!",
+  "The roots deepen…",
+  "Leaves uncurl…",
+];
+
+const wrongFeedbacks = [
+  "Try a different word…",
+  "Hmm, not quite…",
+  "The plant doesn't recognize that.",
+  "Something else perhaps?",
+];
+
+function setFeedback(msg, isGood = true) {
+  const el = document.getElementById('feedback');
+  el.textContent = msg;
+  el.style.color = isGood ? '#2d7a35' : '#c62828';
+}
+
+function markHintUsed(stageIdx) {
+  if (shownHints[stageIdx]) {
+    shownHints[stageIdx].used = true;
+    shownHints[stageIdx].el.classList.add('used');
+  }
+}
+
+function advanceStage() {
+  revealStageAssets(currentStage);
+  markHintUsed(currentStage);
+  currentStage++;
+  correctWordsThisStage = 0;
+  updateProgress();
+
+  if (currentStage >= stages.length) {
+    // Win!
+    const finalTime = stopTimer();
+    onGameWin(finalTime);
+    setTimeout(() => {
+      document.getElementById('win-banner').classList.add('show');
+      animateButterfly();
+    }, 1000);
+  }
+}
+
+// === TIMER & HIGHSCORE ===
+let timerInterval = null;
+let timerStart = null;
+let timerRunning = false;
+let elapsedMs = 0;
+
+// Load scores from localStorage
+function loadScores() {
+  try { return JSON.parse(localStorage.getItem('growScores') || '[]'); }
+  catch { return []; }
+}
+
+function saveScores(scores) {
+  try { localStorage.setItem('growScores', JSON.stringify(scores)); } catch {}
+}
+
+function formatTime(ms) {
+  const s = Math.floor(ms / 1000);
+  const cents = Math.floor((ms % 1000) / 10);
+  return { s, cents: String(cents).padStart(2, '0') };
+}
+
+function updateTimerDisplay(ms) {
+  const { s, cents } = formatTime(ms);
+  document.getElementById('timer-sec').textContent = s;
+  document.getElementById('timer-ms').textContent = '.' + cents;
+}
+
+function startTimer() {
+  if (timerRunning) return;
+  timerRunning = true;
+  timerStart = Date.now();
+  document.getElementById('timer-dot').classList.add('active');
+  timerInterval = setInterval(() => {
+    elapsedMs = Date.now() - timerStart;
+    updateTimerDisplay(elapsedMs);
+  }, 50);
+}
+
+function stopTimer() {
+  if (!timerRunning) return;
+  clearInterval(timerInterval);
+  timerRunning = false;
+  elapsedMs = Date.now() - timerStart;
+  updateTimerDisplay(elapsedMs);
+  document.getElementById('timer-dot').classList.remove('active');
+  return elapsedMs;
+}
+
+function renderBestTime(scores) {
+  const bestEl = document.getElementById('best-display');
+  const bestLabel = document.getElementById('best-label');
+  if (!scores.length) { bestEl.textContent = '—'; bestLabel.textContent = ''; return; }
+  const best = Math.min(...scores);
+  const { s, cents } = formatTime(best);
+  bestEl.textContent = s + '.' + cents + 's';
+  bestLabel.textContent = `Run #${scores.indexOf(best) + 1}`;
+}
+
+function renderScoresList(scores) {
+  const el = document.getElementById('scores-list');
+  if (!scores.length) {
+    el.innerHTML = '<div class="score-entry" style="color:#ccc;font-style:italic;font-size:0.7rem">No runs yet</div>';
+    return;
+  }
+  const best = Math.min(...scores);
+  const recent = scores.slice(-5).reverse();
+  el.innerHTML = recent.map((ms, i) => {
+    const runNum = scores.length - i;
+    const { s, cents } = formatTime(ms);
+    const isBest = ms === best;
+    return `<div class="score-entry${isBest ? ' gold' : ''}">
+      <span>${isBest ? '👑' : '#' + runNum}</span>
+      <span>${s}.${cents}s</span>
+    </div>`;
+  }).join('');
+}
+
+function onGameWin(ms) {
+  const scores = loadScores();
+  scores.push(ms);
+  saveScores(scores);
+  const best = Math.min(...scores);
+  const isRecord = ms === best && scores.length > 1 || scores.length === 1;
+  const { s, cents } = formatTime(ms);
+
+  document.getElementById('win-time').textContent = s + '.' + cents + 's';
+  document.getElementById('win-record-msg').textContent =
+    isRecord ? '🎉 New Best Time!' : `Best: ${formatTime(best).s}.${formatTime(best).cents}s`;
+
+  renderBestTime(scores);
+  renderScoresList(scores);
+}
+
+// Input handling
+const input = document.getElementById('word-input');
+
+input.addEventListener('keydown', e => {
+  if (e.key === 'Enter') {
+    const val = input.value.trim().toLowerCase();
+    if (!val) return;
+    if (currentStage >= stages.length) return;
+
+    // Start timer on first keypress submit
+    if (!timerRunning && currentStage === 0) startTimer();
+    // Also start if they somehow skipped stage 0
+    if (!timerRunning) startTimer();
+
+    const valid = getStageWords();
+    if (valid.includes(val)) {
+      input.classList.remove('wrong');
+      input.classList.add('correct');
+      spawnParticle(val);
+      setFeedback(feedbacks[Math.floor(Math.random() * feedbacks.length)]);
+      setTimeout(() => input.classList.remove('correct'), 600);
+      input.value = '';
+      advanceStage();
+    } else {
+      input.classList.remove('correct');
+      input.classList.add('wrong');
+      setFeedback(wrongFeedbacks[Math.floor(Math.random() * wrongFeedbacks.length)], false);
+      setTimeout(() => {
+        input.classList.remove('wrong');
+        setFeedback('');
+      }, 800);
+    }
+  }
+});
+
+// Also start timer on first keystroke (any key)
+input.addEventListener('input', () => {
+  if (!timerRunning && currentStage < stages.length) startTimer();
+}, { once: true });
+
+// Restart
+document.getElementById('restart-btn').addEventListener('click', () => {
+  location.reload();
+});
+
+// Init
+updateProgress();
+const existingScores = loadScores();
+renderBestTime(existingScores);
+renderScoresList(existingScores);
+input.focus();
+
+// Subtle idle: seed pulses
+let seedPulse = 0;
+const seed = document.getElementById('seed');
+setInterval(() => {
+  if (currentStage === 0 && seed) {
+    seedPulse += 0.05;
+    const s = 1 + Math.sin(seedPulse) * 0.05;
+    seed.setAttribute('transform', `scale(${s})`);
+    seed.setAttribute('transform-origin', '300 298');
+  }
+}, 50);
+</script>
+</body>
+</html>
